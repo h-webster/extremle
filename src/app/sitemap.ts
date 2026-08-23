@@ -1,7 +1,7 @@
 import type { MetadataRoute } from "next";
 import { todayUTC } from "@/lib/daily";
 
-const SITE_URL = "https://extremle.io";
+const SITE_URL = "https://www.extremle.io";
 const LAUNCH_DATE = "2026-08-04";
 
 function pastDates(today: string): string[] {

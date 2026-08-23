@@ -11,7 +11,7 @@ const poppins = Poppins({
   weight: ["400", "500", "600", "700", "800"],
 });
 
-const SITE_URL = "https://extremle.io";
+const SITE_URL = "https://www.extremle.io";
 const TITLE = "Extremle | Geometry Dash Extreme Demon Wordle";
 const DESCRIPTION =
   "Extremle is a daily Wordle-style guessing game for the Geometry Dash extreme demon community. Six guesses to name the mystery level from the Pointercrate top 150 demonlist.";
@@ -20,6 +20,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: TITLE,
   description: DESCRIPTION,
+  alternates: {
+    canonical: "/",
+  },
   icons: {
     icon: "/extremlelogo-removebg.png",
   },
