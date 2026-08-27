@@ -7,34 +7,54 @@ import HintPanel from "@/components/game/HintPanel";
 import ResultPanel from "@/components/game/ResultPanel";
 import { DiamondGlyph } from "@/components/game/glyphs";
 import { puzzleNumber as computePuzzleNumber, todayLocal } from "@/lib/daily";
-import { getGameState, recordResult, saveGameState } from "@/lib/storage";
-import { MAX_GUESSES, type GuessResponse, type LevelOption, type StoredGameState } from "@/types/game";
+import { getGameState, getUnlockedTiers, recordResult, saveGameState, unlockTier } from "@/lib/storage";
+import {
+  MAX_GUESSES,
+  type Difficulty,
+  type GuessResponse,
+  type LevelOption,
+  type StoredGameState,
+} from "@/types/game";
 
 interface PlayGameProps {
+  difficulty: Difficulty;
   /** Fixed date for archive replays. Omit for "today" — resolved client-side from the player's local calendar date. */
   date?: string;
   puzzleNumber?: number;
   isToday?: boolean;
+  /** Fired once when a win on this tier newly unlocks the next one. */
+  onTierUnlocked?: (tier: "hard" | "extreme") => void;
+  /** Lets the result panel's unlock CTA jump the parent difficulty switcher to the newly-unlocked tier. */
+  onSwitchTier?: (tier: Difficulty) => void;
 }
 
-export default function PlayGame({ date: fixedDate, puzzleNumber: fixedPuzzleNumber, isToday = true }: PlayGameProps) {
+export default function PlayGame({
+  difficulty,
+  date: fixedDate,
+  puzzleNumber: fixedPuzzleNumber,
+  isToday = true,
+  onTierUnlocked,
+  onSwitchTier,
+}: PlayGameProps) {
   const [date, setDate] = useState<string | null>(fixedDate ?? null);
   const [guesses, setGuesses] = useState<GuessResponse[]>([]);
   const [status, setStatus] = useState<StoredGameState["status"]>("playing");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [hydrated, setHydrated] = useState(false);
+  const [justUnlocked, setJustUnlocked] = useState<"hard" | "extreme" | null>(null);
 
   useEffect(() => {
     const resolvedDate = fixedDate ?? todayLocal();
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client hydration: resolves the local "today" and reads localStorage
     setDate(resolvedDate);
-    const stored = getGameState(resolvedDate);
+    const stored = getGameState(difficulty, resolvedDate);
     if (stored) {
       setGuesses(stored.guesses);
       setStatus(stored.status);
     }
     setHydrated(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- difficulty is fixed for the lifetime of a mounted PlayGame (parent remounts via key on tier switch)
   }, [fixedDate]);
 
   const excludeIds = useMemo(
@@ -54,6 +74,7 @@ export default function PlayGame({ date: fixedDate, puzzleNumber: fixedPuzzleNum
           guessLevelId: option.id,
           guessNumber: guesses.length + 1,
           date,
+          difficulty,
         }),
       });
       if (!res.ok) {
@@ -69,9 +90,17 @@ export default function PlayGame({ date: fixedDate, puzzleNumber: fixedPuzzleNum
           ? "lost"
           : "playing";
 
-      saveGameState({ date, guesses: nextGuesses, status: nextStatus });
+      saveGameState(difficulty, { date, difficulty, guesses: nextGuesses, status: nextStatus });
       if (nextStatus !== "playing") {
-        recordResult(date, nextStatus === "won", nextGuesses.length);
+        recordResult(difficulty, date, nextStatus === "won", nextGuesses.length);
+        if (nextStatus === "won" && (difficulty === "easy" || difficulty === "hard")) {
+          const nextTier = difficulty === "easy" ? "hard" : "extreme";
+          if (!getUnlockedTiers()[nextTier]) {
+            unlockTier(nextTier);
+            setJustUnlocked(nextTier);
+            onTierUnlocked?.(nextTier);
+          }
+        }
       }
       setGuesses(nextGuesses);
       setStatus(nextStatus);
@@ -125,10 +154,16 @@ export default function PlayGame({ date: fixedDate, puzzleNumber: fixedPuzzleNum
         )}
 
         {status !== "playing" && (
-          <ResultPanel guesses={guesses} status={status} puzzleNumber={puzzleNum} />
+          <ResultPanel
+            guesses={guesses}
+            status={status}
+            puzzleNumber={puzzleNum}
+            unlockedTier={justUnlocked}
+            onSwitchTier={onSwitchTier}
+          />
         )}
 
-        <HintPanel hints={latestHints} attemptsMade={guesses.length} />
+        <HintPanel hints={latestHints} attemptsMade={guesses.length} difficulty={difficulty} />
 
         <GuessLog guesses={guesses} />
       </div>

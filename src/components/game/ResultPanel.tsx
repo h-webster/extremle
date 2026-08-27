@@ -1,13 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MAX_GUESSES, type GuessResponse } from "@/types/game";
+import { MAX_GUESSES, type Difficulty, type GuessResponse } from "@/types/game";
 import { DiamondGlyph, TriangleGlyph } from "@/components/game/glyphs";
+import { roughCount } from "@/lib/format";
 
 interface ResultPanelProps {
   guesses: GuessResponse[];
   status: "won" | "lost";
   puzzleNumber: number;
+  unlockedTier?: "hard" | "extreme" | null;
+  onSwitchTier?: (tier: Difficulty) => void;
 }
 
 function nextResetLabel(): string {
@@ -66,7 +69,13 @@ function ThumbnailFrame({
   );
 }
 
-export default function ResultPanel({ guesses, status, puzzleNumber }: ResultPanelProps) {
+export default function ResultPanel({
+  guesses,
+  status,
+  puzzleNumber,
+  unlockedTier,
+  onSwitchTier,
+}: ResultPanelProps) {
   const [countdown, setCountdown] = useState("");
   const [copied, setCopied] = useState(false);
   const [barWidth, setBarWidth] = useState(0);
@@ -147,6 +156,23 @@ export default function ResultPanel({ guesses, status, puzzleNumber }: ResultPan
         </p>
       </div>
 
+      {unlockedTier && (
+        <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <p className="text-[13px] font-semibold text-accent">
+            {unlockedTier === "hard" ? "Hard mode unlocked!" : "Extreme mode unlocked!"}
+          </p>
+          {onSwitchTier && (
+            <button
+              type="button"
+              onClick={() => onSwitchTier(unlockedTier)}
+              className="border border-accent px-3 py-1.5 text-[12px] font-semibold text-accent transition-transform duration-100 hover:bg-bg-card-hover active:scale-95"
+            >
+              Play {unlockedTier === "hard" ? "Hard" : "Extreme"}
+            </button>
+          )}
+        </div>
+      )}
+
       <ThumbnailFrame src={reveal.thumbnailUrl} videoUrl={reveal.videoUrl} name={reveal.name} />
 
       <div className="px-4 pt-3 text-[13px] text-text-secondary">
@@ -156,6 +182,16 @@ export default function ResultPanel({ guesses, status, puzzleNumber }: ResultPan
       {reveal.song && (
         <p className="px-4 pt-2 text-[13px] text-text-secondary">
           Song: {reveal.song.name} by {reveal.song.author}
+        </p>
+      )}
+
+      {(reveal.recordsCount != null || reveal.downloadsLikes) && (
+        <p className="px-4 pt-2 text-[13px] text-text-secondary">
+          {reveal.recordsCount != null &&
+            `${reveal.recordsCount} victor${reveal.recordsCount === 1 ? "" : "s"}`}
+          {reveal.recordsCount != null && reveal.downloadsLikes && " · "}
+          {reveal.downloadsLikes &&
+            `~${roughCount(reveal.downloadsLikes.downloads)} downloads, ~${roughCount(reveal.downloadsLikes.likes)} likes`}
         </p>
       )}
 

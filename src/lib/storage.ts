@@ -1,7 +1,12 @@
-import type { StoredGameState, StoredStats } from "@/types/game";
+import type { Difficulty, StoredGameState, StoredStats, StoredUnlockState } from "@/types/game";
 
-const STATS_KEY = "demonle:stats";
+const STATS_PREFIX = "demonle:stats:";
 const GAME_PREFIX = "demonle:game:";
+const UNLOCK_KEY = "demonle:unlocked";
+
+// Pre-difficulty-tier key shapes, kept only for the one-time migration below.
+const LEGACY_STATS_KEY = "demonle:stats";
+const LEGACY_DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 const EMPTY_STATS: StoredStats = {
   played: 0,
@@ -12,14 +17,27 @@ const EMPTY_STATS: StoredStats = {
   lastPlayedDate: null,
 };
 
+const EMPTY_UNLOCK_STATE: StoredUnlockState = {
+  hard: false,
+  extreme: false,
+};
+
 function isBrowser() {
   return typeof window !== "undefined";
 }
 
-export function getStats(): StoredStats {
+function statsKey(difficulty: Difficulty) {
+  return `${STATS_PREFIX}${difficulty}`;
+}
+
+function gamePrefix(difficulty: Difficulty) {
+  return `${GAME_PREFIX}${difficulty}:`;
+}
+
+export function getStats(difficulty: Difficulty): StoredStats {
   if (!isBrowser()) return EMPTY_STATS;
   try {
-    const raw = window.localStorage.getItem(STATS_KEY);
+    const raw = window.localStorage.getItem(statsKey(difficulty));
     if (!raw) return EMPTY_STATS;
     return { ...EMPTY_STATS, ...(JSON.parse(raw) as StoredStats) };
   } catch {
@@ -27,13 +45,18 @@ export function getStats(): StoredStats {
   }
 }
 
-function saveStats(stats: StoredStats) {
+function saveStats(difficulty: Difficulty, stats: StoredStats) {
   if (!isBrowser()) return;
-  window.localStorage.setItem(STATS_KEY, JSON.stringify(stats));
+  window.localStorage.setItem(statsKey(difficulty), JSON.stringify(stats));
 }
 
-export function recordResult(date: string, won: boolean, guessCount: number): StoredStats {
-  const stats = getStats();
+export function recordResult(
+  difficulty: Difficulty,
+  date: string,
+  won: boolean,
+  guessCount: number
+): StoredStats {
+  const stats = getStats(difficulty);
   if (stats.lastPlayedDate === date) {
     return stats; // already recorded today's result
   }
@@ -51,14 +74,14 @@ export function recordResult(date: string, won: boolean, guessCount: number): St
     next.guessDistribution[guessCount - 1] += 1;
   }
 
-  saveStats(next);
+  saveStats(difficulty, next);
   return next;
 }
 
-export function getGameState(date: string): StoredGameState | null {
+export function getGameState(difficulty: Difficulty, date: string): StoredGameState | null {
   if (!isBrowser()) return null;
   try {
-    const raw = window.localStorage.getItem(GAME_PREFIX + date);
+    const raw = window.localStorage.getItem(gamePrefix(difficulty) + date);
     if (!raw) return null;
     return JSON.parse(raw) as StoredGameState;
   } catch {
@@ -66,9 +89,32 @@ export function getGameState(date: string): StoredGameState | null {
   }
 }
 
-export function saveGameState(state: StoredGameState) {
+export function saveGameState(difficulty: Difficulty, state: StoredGameState) {
   if (!isBrowser()) return;
-  window.localStorage.setItem(GAME_PREFIX + state.date, JSON.stringify(state));
+  window.localStorage.setItem(gamePrefix(difficulty) + state.date, JSON.stringify(state));
+}
+
+export function getUnlockedTiers(): StoredUnlockState {
+  if (!isBrowser()) return EMPTY_UNLOCK_STATE;
+  try {
+    const raw = window.localStorage.getItem(UNLOCK_KEY);
+    if (!raw) return EMPTY_UNLOCK_STATE;
+    return { ...EMPTY_UNLOCK_STATE, ...(JSON.parse(raw) as StoredUnlockState) };
+  } catch {
+    return EMPTY_UNLOCK_STATE;
+  }
+}
+
+/** Permanently unlocks a tier (once ever won, stays unlocked — no daily re-lock). */
+export function unlockTier(tier: "hard" | "extreme") {
+  if (!isBrowser()) return;
+  const state = getUnlockedTiers();
+  if (state[tier]) return;
+  window.localStorage.setItem(UNLOCK_KEY, JSON.stringify({ ...state, [tier]: true }));
+}
+
+function isManagedKey(key: string): boolean {
+  return key.startsWith(STATS_PREFIX) || key.startsWith(GAME_PREFIX) || key === UNLOCK_KEY;
 }
 
 export function exportSave(): string {
@@ -76,7 +122,7 @@ export function exportSave(): string {
   const dump: Record<string, unknown> = {};
   for (let i = 0; i < window.localStorage.length; i++) {
     const key = window.localStorage.key(i);
-    if (key && (key === STATS_KEY || key.startsWith(GAME_PREFIX))) {
+    if (key && isManagedKey(key)) {
       dump[key] = JSON.parse(window.localStorage.getItem(key) as string);
     }
   }
@@ -89,7 +135,7 @@ export function importSave(json: string): { ok: true } | { ok: false; error: str
     const parsed = JSON.parse(json) as { data?: Record<string, unknown> };
     if (!parsed.data) return { ok: false, error: "Missing data field" };
     for (const [key, value] of Object.entries(parsed.data)) {
-      if (key === STATS_KEY || key.startsWith(GAME_PREFIX)) {
+      if (isManagedKey(key)) {
         window.localStorage.setItem(key, JSON.stringify(value));
       }
     }
@@ -104,9 +150,50 @@ export function resetSave() {
   const toRemove: string[] = [];
   for (let i = 0; i < window.localStorage.length; i++) {
     const key = window.localStorage.key(i);
-    if (key && (key === STATS_KEY || key.startsWith(GAME_PREFIX))) {
+    if (key && isManagedKey(key)) {
       toRemove.push(key);
     }
   }
   toRemove.forEach((key) => window.localStorage.removeItem(key));
+}
+
+/**
+ * One-time migration from the pre-difficulty-tier key shapes (`demonle:stats`,
+ * `demonle:game:{date}`) to the difficulty-scoped ones (`demonle:stats:easy`,
+ * `demonle:game:easy:{date}`), so existing players' streaks/history survive
+ * the switch to difficulty tiers instead of silently vanishing. Safe to call
+ * on every mount — idempotent, and a no-op once the legacy keys are gone.
+ */
+export function migrateLegacyStorage() {
+  if (!isBrowser()) return;
+
+  const legacyStats = window.localStorage.getItem(LEGACY_STATS_KEY);
+  if (legacyStats !== null) {
+    if (window.localStorage.getItem(statsKey("easy")) === null) {
+      window.localStorage.setItem(statsKey("easy"), legacyStats);
+    }
+    window.localStorage.removeItem(LEGACY_STATS_KEY);
+  }
+
+  const legacyGameKeys: string[] = [];
+  for (let i = 0; i < window.localStorage.length; i++) {
+    const key = window.localStorage.key(i);
+    if (!key || !key.startsWith(GAME_PREFIX)) continue;
+    const rest = key.slice(GAME_PREFIX.length);
+    // New-format keys look like "easy:2026-08-04"; legacy ones are just the date.
+    if (LEGACY_DATE_PATTERN.test(rest)) {
+      legacyGameKeys.push(key);
+    }
+  }
+
+  for (const legacyKey of legacyGameKeys) {
+    const date = legacyKey.slice(GAME_PREFIX.length);
+    const value = window.localStorage.getItem(legacyKey);
+    if (value === null) continue;
+    const newKey = gamePrefix("easy") + date;
+    if (window.localStorage.getItem(newKey) === null) {
+      window.localStorage.setItem(newKey, value);
+    }
+    window.localStorage.removeItem(legacyKey);
+  }
 }

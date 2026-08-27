@@ -1,5 +1,5 @@
-import PlayGame from "@/components/game/PlayGame";
+import DifficultyGame from "@/components/game/DifficultyGame";
 
 export default function Home() {
-  return <PlayGame />;
+  return <DifficultyGame />;
 }

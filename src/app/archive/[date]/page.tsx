@@ -45,5 +45,6 @@ export default async function ArchivePuzzlePage({
     notFound();
   }
 
-  return <PlayGame date={date} puzzleNumber={puzzleNumber(date)} isToday={false} />;
+  // Archive replay is Easy-only for now — Hard/Extreme archive support is a fast-follow.
+  return <PlayGame difficulty="easy" date={date} puzzleNumber={puzzleNumber(date)} isToday={false} />;
 }

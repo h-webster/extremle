@@ -2,15 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { recordCompletion } from "@/lib/completions";
 import { getDailyTarget, todayUTC } from "@/lib/daily";
 import { buildFullReveal, buildHints } from "@/lib/hints";
-import { MAX_GUESSES, type GuessResponse } from "@/types/game";
+import { MAX_GUESSES, type Difficulty, type GuessResponse } from "@/types/game";
 
 // See src/app/api/levels/route.ts for why this is required, not optional.
 export const runtime = "edge";
+
+const DIFFICULTIES: Difficulty[] = ["easy", "hard", "extreme"];
 
 interface GuessBody {
   guessLevelId?: number;
   guessNumber?: number;
   date?: string;
+  difficulty?: string;
 }
 
 export async function POST(request: NextRequest) {
@@ -21,7 +24,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const { guessLevelId, guessNumber, date } = body;
+  const { guessLevelId, guessNumber, date, difficulty } = body;
 
   if (typeof guessLevelId !== "number") {
     return NextResponse.json({ error: "guessLevelId is required" }, { status: 400 });
@@ -32,11 +35,18 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
+  if (!difficulty || !DIFFICULTIES.includes(difficulty as Difficulty)) {
+    return NextResponse.json(
+      { error: `difficulty must be one of ${DIFFICULTIES.join(", ")}` },
+      { status: 400 }
+    );
+  }
+  const resolvedDifficulty = difficulty as Difficulty;
 
   const resolvedDate = date ?? todayUTC();
 
   try {
-    const { target, pool } = await getDailyTarget(resolvedDate);
+    const { target, pool } = await getDailyTarget(resolvedDate, resolvedDifficulty);
     const guessed = pool.find((demon) => demon.id === guessLevelId);
 
     if (!guessed) {
@@ -50,7 +60,7 @@ export async function POST(request: NextRequest) {
         ? "harder"
         : "easier";
 
-    const hints = await buildHints(target, guessNumber);
+    const hints = await buildHints(target, guessNumber, resolvedDifficulty);
     const gameOver = correct || guessNumber >= MAX_GUESSES;
 
     const response: GuessResponse = {
@@ -67,7 +77,7 @@ export async function POST(request: NextRequest) {
       ...(gameOver
         ? {
             reveal: await buildFullReveal(target),
-            completionStats: await recordCompletion(resolvedDate, correct),
+            completionStats: await recordCompletion(resolvedDate, resolvedDifficulty, correct),
           }
         : {}),
     };

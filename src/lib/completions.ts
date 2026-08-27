@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import type { Difficulty } from "@/types/game";
 
 /**
  * Cross-player completion counts, per puzzle date. This is the one piece of
@@ -18,12 +19,12 @@ const redis =
       })
     : null;
 
-function playedKey(date: string) {
-  return `demonle:completions:${date}:played`;
+function playedKey(date: string, difficulty: Difficulty) {
+  return `demonle:completions:${date}:${difficulty}:played`;
 }
 
-function wonKey(date: string) {
-  return `demonle:completions:${date}:won`;
+function wonKey(date: string, difficulty: Difficulty) {
+  return `demonle:completions:${date}:${difficulty}:won`;
 }
 
 export interface CompletionStats {
@@ -34,16 +35,17 @@ export interface CompletionStats {
 /** Records one finished game (win or loss) and returns the updated counts, including this one. */
 export async function recordCompletion(
   date: string,
+  difficulty: Difficulty,
   won: boolean
 ): Promise<CompletionStats | null> {
   if (!redis) return null;
   try {
     const pipeline = redis.pipeline();
-    pipeline.incr(playedKey(date));
+    pipeline.incr(playedKey(date, difficulty));
     if (won) {
-      pipeline.incr(wonKey(date));
+      pipeline.incr(wonKey(date, difficulty));
     } else {
-      pipeline.get<number>(wonKey(date));
+      pipeline.get<number>(wonKey(date, difficulty));
     }
     const [played, wonCount] = await pipeline.exec<[number, number | null]>();
     return { played, won: wonCount ?? 0 };

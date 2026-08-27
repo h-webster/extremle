@@ -33,8 +33,17 @@ export interface PointercrateDemon {
   level_id: number | null;
 }
 
+/** One entry from the demon detail endpoint's `records` array — used for the "victors" hint/reveal (approved records = players who've beaten the level). */
+export interface PointercrateRecord {
+  id: number;
+  status: string;
+  progress: number;
+  player: PointercratePlayer;
+}
+
 export interface PointercrateDemonDetail extends PointercrateDemon {
   creators: PointercratePlayer[];
+  records: PointercrateRecord[];
 }
 
 /**

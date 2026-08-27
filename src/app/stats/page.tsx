@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from "react";
 import Link from "next/link";
 import { exportSave, getStats, importSave, resetSave } from "@/lib/storage";
-import type { StoredStats } from "@/types/game";
+import type { Difficulty, StoredStats } from "@/types/game";
 
 const EMPTY: StoredStats = {
   played: 0,
@@ -14,15 +14,22 @@ const EMPTY: StoredStats = {
   lastPlayedDate: null,
 };
 
+const TIERS: { id: Difficulty; label: string }[] = [
+  { id: "easy", label: "Easy" },
+  { id: "hard", label: "Hard" },
+  { id: "extreme", label: "Extreme" },
+];
+
 export default function StatsPage() {
+  const [difficulty, setDifficulty] = useState<Difficulty>("easy");
   const [stats, setStats] = useState<StoredStats>(EMPTY);
   const [message, setMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client hydration from localStorage
-    setStats(getStats());
-  }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- client hydration from localStorage, re-runs when the tab switches
+    setStats(getStats(difficulty));
+  }, [difficulty]);
 
   const winPercent = stats.played === 0 ? 0 : Math.round((stats.won / stats.played) * 100);
   const maxDistribution = Math.max(1, ...stats.guessDistribution);
@@ -49,7 +56,7 @@ export default function StatsPage() {
     reader.onload = () => {
       const result = importSave(String(reader.result));
       if (result.ok) {
-        setStats(getStats());
+        setStats(getStats(difficulty));
         setMessage("Save imported.");
       } else {
         setMessage(`Import failed: ${result.error}`);
@@ -71,6 +78,23 @@ export default function StatsPage() {
   return (
     <div className="mx-auto w-full max-w-xl flex-1 px-4 py-10">
       <h1 className="text-xl font-bold text-text-primary">Your stats</h1>
+
+      <div className="mt-4 flex border-b border-border">
+        {TIERS.map((tier) => (
+          <button
+            key={tier.id}
+            type="button"
+            onClick={() => setDifficulty(tier.id)}
+            className={`flex-1 border-b-2 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
+              difficulty === tier.id
+                ? "border-accent text-text-primary"
+                : "border-transparent text-text-muted hover:text-text-primary"
+            }`}
+          >
+            {tier.label}
+          </button>
+        ))}
+      </div>
 
       <dl className="mt-6 grid grid-cols-4 gap-4 border-y border-border py-6">
         {[

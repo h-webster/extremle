@@ -1,5 +1,8 @@
 import { getDailyPool, type PointercrateDemon } from "@/lib/pointercrate";
 import { SCHEDULE } from "@/lib/schedule";
+import type { Difficulty } from "@/types/game";
+
+const DIFFICULTIES: Difficulty[] = ["easy", "hard", "extreme"];
 
 /** First day the daily puzzle ran — used only to number puzzles for display ("Puzzle #12"). */
 const LAUNCH_DATE = "2026-08-04";
@@ -30,31 +33,72 @@ export function puzzleNumber(dateStr: string = todayUTC()): number {
   return Math.max(1, days + 1);
 }
 
-/** Deterministic 32-bit hash (djb2) so every player gets the same daily target. */
-function seedFromDate(dateStr: string): number {
+/**
+ * Deterministic 32-bit hash (djb2) so every player gets the same daily target.
+ * Easy stays unsalted (hashes the date alone) for backward compatibility with
+ * puzzles already played before difficulty tiers existed — Hard/Extreme salt
+ * the input with the difficulty name so they diverge from Easy's pick.
+ */
+function seedFromDate(dateStr: string, difficulty: Difficulty): number {
+  const input = difficulty === "easy" ? dateStr : `${dateStr}:${difficulty}`;
   let hash = 5381;
-  for (let i = 0; i < dateStr.length; i++) {
-    hash = (hash * 33) ^ dateStr.charCodeAt(i);
+  for (let i = 0; i < input.length; i++) {
+    hash = (hash * 33) ^ input.charCodeAt(i);
   }
   return hash >>> 0;
 }
 
-export async function getDailyTarget(
+/**
+ * Resolves all three difficulties' targets for a date together, since each
+ * day's three levels must be distinct from one another. Resolution order is
+ * easy -> hard -> extreme (easy is the backward-compatible anchor); a salted
+ * pick that collides with an already-resolved tier's index is deterministically
+ * walked forward (linear probing) until it lands on a free slot.
+ */
+export async function getDailyTargets(
   dateStr: string = todayUTC()
-): Promise<{ target: PointercrateDemon; pool: PointercrateDemon[] }> {
+): Promise<Record<Difficulty, PointercrateDemon>> {
   const pool = await getDailyPool();
+  const usedIndices = new Set<number>();
+  const result = {} as Record<Difficulty, PointercrateDemon>;
 
-  const scheduledId = SCHEDULE[dateStr];
-  if (scheduledId !== undefined) {
-    const scheduled = pool.find((demon) => demon.id === scheduledId);
-    if (scheduled) {
-      return { target: scheduled, pool };
+  for (const difficulty of DIFFICULTIES) {
+    const scheduledId = SCHEDULE[dateStr]?.[difficulty];
+    if (scheduledId !== undefined) {
+      const scheduledIndex = pool.findIndex((demon) => demon.id === scheduledId);
+      if (scheduledIndex !== -1) {
+        if (usedIndices.has(scheduledIndex)) {
+          console.warn(
+            `SCHEDULE[${dateStr}].${difficulty} = ${scheduledId} collides with another difficulty's target for the same date — levels are supposed to differ.`
+          );
+        }
+        usedIndices.add(scheduledIndex);
+        result[difficulty] = pool[scheduledIndex];
+        continue;
+      }
+      console.warn(
+        `SCHEDULE[${dateStr}].${difficulty} = ${scheduledId}, but that id isn't in the current top-150 pool — falling back to the seeded pick.`
+      );
     }
-    console.warn(
-      `SCHEDULE[${dateStr}] = ${scheduledId}, but that id isn't in the current top-150 pool — falling back to the seeded pick.`
-    );
+
+    let index = seedFromDate(dateStr, difficulty) % pool.length;
+    let attempt = 1;
+    while (usedIndices.has(index)) {
+      index = (index + attempt) % pool.length;
+      attempt += 1;
+    }
+    usedIndices.add(index);
+    result[difficulty] = pool[index];
   }
 
-  const index = seedFromDate(dateStr) % pool.length;
-  return { target: pool[index], pool };
+  return result;
 }
+
+export async function getDailyTarget(
+  dateStr: string = todayUTC(),
+  difficulty: Difficulty = "easy"
+): Promise<{ target: PointercrateDemon; pool: PointercrateDemon[] }> {
+  const [pool, targets] = await Promise.all([getDailyPool(), getDailyTargets(dateStr)]);
+  return { target: targets[difficulty], pool };
+}
+
