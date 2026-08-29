@@ -1,10 +1,14 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
+import DifficultyGame from "@/components/game/DifficultyGame";
 import PlayGame from "@/components/game/PlayGame";
 import { puzzleNumber, todayUTC } from "@/lib/daily";
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const LAUNCH_DATE = "2026-08-04";
+// First date the daily target was seeded per-difficulty (see src/lib/schedule.ts) — before this,
+// only an Easy puzzle ever existed for that day, so the archive stays single-tier for older dates.
+const DIFFICULTY_TIERS_START = "2026-08-26";
 
 function formatDateLabel(date: string) {
   return new Date(`${date}T00:00:00Z`).toLocaleDateString("en-US", {
@@ -45,6 +49,10 @@ export default async function ArchivePuzzlePage({
     notFound();
   }
 
-  // Archive replay is Easy-only for now — Hard/Extreme archive support is a fast-follow.
-  return <PlayGame difficulty="easy" date={date} puzzleNumber={puzzleNumber(date)} isToday={false} />;
+  // Dates before difficulty tiers existed only ever had an Easy puzzle — no tier switcher for those.
+  if (date < DIFFICULTY_TIERS_START) {
+    return <PlayGame difficulty="easy" date={date} puzzleNumber={puzzleNumber(date)} isToday={false} />;
+  }
+
+  return <DifficultyGame date={date} puzzleNumber={puzzleNumber(date)} isToday={false} />;
 }

@@ -71,7 +71,7 @@ async function victorsHint(target: PointercrateDemon): Promise<Partial<RevealedH
 const HINT_SCHEDULES: Record<Difficulty, HintBuilder[]> = {
   easy: [listTierHint, tagsHint, publisherVerifiedHint, songHint, thumbnailHint],
   hard: [listTierHint, tagsHint, downloadsLikesHint, victorsHint, publisherVerifiedHint],
-  extreme: [],
+  extreme: [listTierHint, downloadsLikesHint],
 };
 
 export async function buildHints(

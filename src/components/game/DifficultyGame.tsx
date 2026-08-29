@@ -20,7 +20,14 @@ function LockIcon() {
   );
 }
 
-export default function DifficultyGame({ puzzleNumber }: { puzzleNumber?: number }) {
+interface DifficultyGameProps {
+  puzzleNumber?: number;
+  /** Fixed date for archive replays. Omit for "today" — resolved client-side by PlayGame. */
+  date?: string;
+  isToday?: boolean;
+}
+
+export default function DifficultyGame({ puzzleNumber, date, isToday = true }: DifficultyGameProps) {
   const [selected, setSelected] = useState<Difficulty>("easy");
   const [unlocked, setUnlocked] = useState<StoredUnlockState>({ hard: false, extreme: false });
   const [hydrated, setHydrated] = useState(false);
@@ -72,7 +79,8 @@ export default function DifficultyGame({ puzzleNumber }: { puzzleNumber?: number
       <PlayGame
         key={selected}
         difficulty={selected}
-        isToday
+        date={date}
+        isToday={isToday}
         puzzleNumber={puzzleNumber}
         onTierUnlocked={handleTierUnlocked}
         onSwitchTier={setSelected}

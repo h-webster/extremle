@@ -165,7 +165,7 @@ export default function PlayGame({
 
         <HintPanel hints={latestHints} attemptsMade={guesses.length} difficulty={difficulty} />
 
-        <GuessLog guesses={guesses} />
+        <GuessLog guesses={guesses} difficulty={difficulty} />
       </div>
     </div>
   );

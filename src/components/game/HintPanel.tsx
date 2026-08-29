@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { Difficulty, RevealedHints } from "@/types/game";
-import { roughCount } from "@/lib/format";
+import { bucketRange, roughCount } from "@/lib/format";
 
 interface HintPanelProps {
   hints: RevealedHints | undefined;
@@ -105,10 +105,22 @@ const VICTORS_HINT: HintDef = {
     hints?.recordsCount != null ? `${hints.recordsCount} player${hints.recordsCount === 1 ? "" : "s"} have beaten this` : "unavailable",
 };
 
+/** Wide, bucketed ranges rather than Hard's ~2-sig-fig rough number — Extreme keeps the full 150-level pool winnable within 6 guesses by giving coarser info, not a smaller pool. See the plan file for the worst-case-cluster math this is based on. */
+const EXTREME_DOWNLOADS_LIKES_HINT: HintDef = {
+  key: "downloadsLikes",
+  threshold: 2,
+  title: "Downloads & likes",
+  color: "#0d9488",
+  render: (hints) =>
+    hints?.downloadsLikes
+      ? `${bucketRange(hints.downloadsLikes.downloads, 25_000)} downloads, ${bucketRange(hints.downloadsLikes.likes, 2_500)} likes`
+      : "unavailable",
+};
+
 const HINT_SCHEDULES: Record<Difficulty, HintDef[]> = {
   easy: [LIST_HINT, TAGS_HINT, publishedVerifiedHint(3), SONG_HINT, THUMBNAIL_HINT],
   hard: [LIST_HINT, TAGS_HINT, DOWNLOADS_LIKES_HINT, VICTORS_HINT, publishedVerifiedHint(5)],
-  extreme: [],
+  extreme: [LIST_HINT, EXTREME_DOWNLOADS_LIKES_HINT],
 };
 
 function HintCard({

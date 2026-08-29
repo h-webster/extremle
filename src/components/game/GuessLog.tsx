@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import type { GuessResponse } from "@/types/game";
+import type { Difficulty, GuessResponse } from "@/types/game";
 import { TriangleGlyph } from "@/components/game/glyphs";
 
 function DirectionLabel({ guess }: { guess: GuessResponse }) {
@@ -18,7 +18,13 @@ function DirectionLabel({ guess }: { guess: GuessResponse }) {
   );
 }
 
-export default function GuessLog({ guesses }: { guesses: GuessResponse[] }) {
+export default function GuessLog({
+  guesses,
+  difficulty,
+}: {
+  guesses: GuessResponse[];
+  difficulty: Difficulty;
+}) {
   return (
     <ol className="border-t border-border">
       {[...guesses].reverse().map((guess) => (
@@ -31,9 +37,11 @@ export default function GuessLog({ guesses }: { guesses: GuessResponse[] }) {
             <span className="truncate text-[14px] font-medium text-text-primary">
               {guess.guessedLevel.name}
             </span>
-            <span className="shrink-0 text-[12px] text-text-muted">
-              #{guess.guessedLevel.position}
-            </span>
+            {difficulty !== "extreme" && (
+              <span className="shrink-0 text-[12px] text-text-muted">
+                #{guess.guessedLevel.position}
+              </span>
+            )}
           </div>
           <DirectionLabel guess={guess} />
         </li>

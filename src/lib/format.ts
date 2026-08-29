@@ -16,3 +16,16 @@ export function roughCount(n: number): string {
   }
   return String(rounded);
 }
+
+function formatBoundary(n: number): string {
+  if (n < 1000) return String(n);
+  if (n < 1_000_000) return `${Number((n / 1000).toFixed(1))}K`;
+  return `${Number((n / 1_000_000).toFixed(1))}M`;
+}
+
+/** Buckets n into a [lower, lower+width) range and formats both ends, e.g. bucketRange(28000, 25_000) -> "25K–50K". Boundaries are always exact multiples of width, so this formats them directly rather than through roughCount's approximate rounding (which would distort clean boundaries like 17500 into "18K"). */
+export function bucketRange(n: number, width: number): string {
+  const lower = Math.floor(n / width) * width;
+  const upper = lower + width;
+  return `${formatBoundary(lower)}–${formatBoundary(upper)}`;
+}
