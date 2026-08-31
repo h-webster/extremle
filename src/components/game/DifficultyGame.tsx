@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import PlayGame from "@/components/game/PlayGame";
 import { getUnlockedTiers, migrateLegacyStorage } from "@/lib/storage";
 import type { Difficulty, StoredUnlockState } from "@/types/game";
 
-const TIERS: { id: Difficulty; label: string }[] = [
-  { id: "easy", label: "Easy" },
-  { id: "hard", label: "Hard" },
-  { id: "extreme", label: "Extreme" },
+const TIERS: { id: Difficulty; label: string; face: string }[] = [
+  { id: "easy", label: "Easy", face: "/easy-face.png" },
+  { id: "hard", label: "Hard", face: "/harddemon-face.png" },
+  { id: "extreme", label: "Extreme", face: "/extremedemon-face.png" },
 ];
 
 function LockIcon() {
@@ -64,12 +65,19 @@ export default function DifficultyGame({ puzzleNumber, date, isToday = true }: D
                 disabled={locked}
                 onClick={() => setSelected(tier.id)}
                 title={locked ? `Win ${tier.id === "hard" ? "Easy" : "Hard"} to unlock` : undefined}
-                className={`flex-1 border-b-2 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
+                className={`flex flex-1 items-center justify-center gap-1.5 border-b-2 px-3 py-2.5 text-[13px] font-semibold transition-colors ${
                   selected === tier.id
                     ? "border-accent text-text-primary"
                     : "border-transparent text-text-muted"
                 } ${locked ? "cursor-not-allowed opacity-50" : "hover:text-text-primary"}`}
               >
+                <Image
+                  src={tier.face}
+                  alt=""
+                  width={20}
+                  height={20}
+                  className={locked ? "grayscale" : ""}
+                />
                 {tier.label} {locked && <LockIcon />}
               </button>
             );
