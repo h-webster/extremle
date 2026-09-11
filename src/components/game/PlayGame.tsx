@@ -148,7 +148,13 @@ export default function PlayGame({
       <div className="flex flex-col gap-6 py-6">
         {status === "playing" && (
           <div>
-            <GuessInput disabled={submitting} excludeIds={excludeIds} onSubmit={handleGuess} />
+            <GuessInput
+              disabled={submitting}
+              excludeIds={excludeIds}
+              onSubmit={handleGuess}
+              date={date}
+              difficulty={difficulty}
+            />
             {error && <p className="mt-2 text-[13px] text-danger">{error}</p>}
           </div>
         )}

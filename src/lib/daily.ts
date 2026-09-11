@@ -1,5 +1,6 @@
-import { getDailyPool, type PointercrateDemon } from "@/lib/pointercrate";
+import { getDailyPool, resolveDemonById, type PointercrateDemon } from "@/lib/pointercrate";
 import { SCHEDULE } from "@/lib/schedule";
+import { freezeTargetId, getFrozenTargetId } from "@/lib/targets";
 import type { Difficulty } from "@/types/game";
 
 const DIFFICULTIES: Difficulty[] = ["easy", "hard", "extreme"];
@@ -52,43 +53,80 @@ function seedFromDate(dateStr: string, difficulty: Difficulty): number {
  * Resolves all three difficulties' targets for a date together, since each
  * day's three levels must be distinct from one another. Resolution order is
  * easy -> hard -> extreme (easy is the backward-compatible anchor); a salted
- * pick that collides with an already-resolved tier's index is deterministically
+ * pick that collides with an already-resolved tier's demon is deterministically
  * walked forward (linear probing) until it lands on a free slot.
+ *
+ * Every date+difficulty is permanently pinned (see targets.ts) the first time
+ * it's ever resolved, so replaying an old date always shows the same puzzle
+ * that was actually played that day — even if the live Pointercrate list has
+ * since reshuffled enough to change what the schedule/seed logic would now
+ * compute. Pass 1 below applies any existing freeze; Pass 2 computes (via the
+ * same SCHEDULE-then-seed logic as before) and freezes whatever's left.
  */
 export async function getDailyTargets(
   dateStr: string = todayUTC()
 ): Promise<Record<Difficulty, PointercrateDemon>> {
   const pool = await getDailyPool();
-  const usedIndices = new Set<number>();
+  const usedIds = new Set<number>();
   const result = {} as Record<Difficulty, PointercrateDemon>;
+  const pending: Difficulty[] = [];
 
+  // Pass 1: honor any existing freeze. A frozen demon may have since fallen
+  // off the live pool entirely — resolveDemonById falls back to a direct
+  // detail fetch by id in that case, so it stays resolvable either way.
   for (const difficulty of DIFFICULTIES) {
+    const frozenId = await getFrozenTargetId(dateStr, difficulty);
+    if (frozenId == null) {
+      pending.push(difficulty);
+      continue;
+    }
+    const demon = await resolveDemonById(frozenId, pool);
+    if (!demon) {
+      // Extremely rare: pointercrate has fully deleted this demon. Don't
+      // touch the frozen key over what may be a transient failure — just
+      // fall back to a fresh computation for this one request.
+      pending.push(difficulty);
+      continue;
+    }
+    usedIds.add(demon.id);
+    result[difficulty] = demon;
+  }
+
+  // Pass 2: compute (SCHEDULE override, else seeded pick with linear-probe
+  // collision avoidance against usedIds) and freeze whatever wasn't already frozen.
+  for (const difficulty of pending) {
     const scheduledId = SCHEDULE[dateStr]?.[difficulty];
+    let demon: PointercrateDemon | undefined;
+
     if (scheduledId !== undefined) {
-      const scheduledIndex = pool.findIndex((demon) => demon.id === scheduledId);
-      if (scheduledIndex !== -1) {
-        if (usedIndices.has(scheduledIndex)) {
+      const scheduled = pool.find((d) => d.id === scheduledId);
+      if (scheduled) {
+        if (usedIds.has(scheduled.id)) {
           console.warn(
             `SCHEDULE[${dateStr}].${difficulty} = ${scheduledId} collides with another difficulty's target for the same date — levels are supposed to differ.`
           );
         }
-        usedIndices.add(scheduledIndex);
-        result[difficulty] = pool[scheduledIndex];
-        continue;
+        demon = scheduled;
+      } else {
+        console.warn(
+          `SCHEDULE[${dateStr}].${difficulty} = ${scheduledId}, but that id isn't in the current top-150 pool — falling back to the seeded pick.`
+        );
       }
-      console.warn(
-        `SCHEDULE[${dateStr}].${difficulty} = ${scheduledId}, but that id isn't in the current top-150 pool — falling back to the seeded pick.`
-      );
     }
 
-    let index = seedFromDate(dateStr, difficulty) % pool.length;
-    let attempt = 1;
-    while (usedIndices.has(index)) {
-      index = (index + attempt) % pool.length;
-      attempt += 1;
+    if (!demon) {
+      let index = seedFromDate(dateStr, difficulty) % pool.length;
+      let attempt = 1;
+      while (usedIds.has(pool[index].id)) {
+        index = (index + attempt) % pool.length;
+        attempt += 1;
+      }
+      demon = pool[index];
     }
-    usedIndices.add(index);
-    result[difficulty] = pool[index];
+
+    usedIds.add(demon.id);
+    result[difficulty] = demon;
+    await freezeTargetId(dateStr, difficulty, demon.id);
   }
 
   return result;

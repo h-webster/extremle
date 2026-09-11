@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "list-pool": "node scripts/list-pool.mjs",
-    "merge-completion-stats": "node scripts/merge-completion-stats.mjs"
+    "merge-completion-stats": "node scripts/merge-completion-stats.mjs",
+    "fix-target": "node scripts/fix-target.mjs"
   },
   "dependencies": {
     "@upstash/redis": "^1.38.2",

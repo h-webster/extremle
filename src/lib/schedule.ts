@@ -16,6 +16,12 @@ import type { Difficulty } from "@/types/game";
  * difficulties' targets must differ from each other for a given date — a
  * console.warn fires at request time if an override collides with another
  * difficulty's resolved target, so watch the server logs after editing this.
+ *
+ * IMPORTANT: once a date+difficulty has ever been resolved (played or
+ * replayed), its target is permanently pinned in Redis (see targets.ts) and
+ * is never recomputed again — an entry added or changed here AFTER that has
+ * no effect. This only works for dates that haven't been played by anyone
+ * yet. To correct an already-frozen date, use `npm run fix-target` instead.
  */
 export const SCHEDULE: Record<string, Partial<Record<Difficulty, number>>> = {
   "2026-08-04": { easy: 646 },

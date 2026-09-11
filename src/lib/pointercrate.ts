@@ -91,6 +91,28 @@ export async function getDemonDetail(id: number): Promise<PointercrateDemonDetai
   return body.data;
 }
 
+/**
+ * Resolves a demon by id, preferring an already-fetched pool (no extra
+ * request) and falling back to a direct detail fetch by id — which works
+ * regardless of whether the demon is still in the top-150. Used to keep a
+ * frozen (see targets.ts) target resolvable even after it's fallen off the
+ * live pool. Returns null only if pointercrate has fully deleted the demon
+ * (not just dropped its position below 150) — extremely rare in practice.
+ */
+export async function resolveDemonById(
+  id: number,
+  pool: PointercrateDemon[]
+): Promise<PointercrateDemon | null> {
+  const inPool = pool.find((d) => d.id === id);
+  if (inPool) return inPool;
+  try {
+    return await getDemonDetail(id);
+  } catch (err) {
+    console.error(`resolveDemonById: demon ${id} not found in pool or by detail fetch`, err);
+    return null;
+  }
+}
+
 export function listTier(position: number): ListTier {
   return position <= MAIN_LIST_SIZE ? "main" : "extended";
 }

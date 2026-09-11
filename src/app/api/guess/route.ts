@@ -47,7 +47,12 @@ export async function POST(request: NextRequest) {
 
   try {
     const { target, pool } = await getDailyTarget(resolvedDate, resolvedDifficulty);
-    const guessed = pool.find((demon) => demon.id === guessLevelId);
+    // The target may have fallen off the live pool since it was frozen (see
+    // src/lib/targets.ts) — `target` itself is already fully resolved either
+    // way, so accept a guess against it even when `pool` doesn't contain it.
+    const guessed =
+      pool.find((demon) => demon.id === guessLevelId) ??
+      (guessLevelId === target.id ? target : undefined);
 
     if (!guessed) {
       return NextResponse.json({ error: "Unknown level for today's pool" }, { status: 400 });

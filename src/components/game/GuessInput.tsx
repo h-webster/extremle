@@ -1,15 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import type { LevelOption } from "@/types/game";
+import type { Difficulty, LevelOption } from "@/types/game";
 
 interface GuessInputProps {
   disabled: boolean;
   excludeIds: Set<number>;
   onSubmit: (option: LevelOption) => void;
+  date: string;
+  difficulty: Difficulty;
 }
 
-export default function GuessInput({ disabled, excludeIds, onSubmit }: GuessInputProps) {
+export default function GuessInput({
+  disabled,
+  excludeIds,
+  onSubmit,
+  date,
+  difficulty,
+}: GuessInputProps) {
   const [query, setQuery] = useState("");
   const [options, setOptions] = useState<LevelOption[]>([]);
   const [open, setOpen] = useState(false);
@@ -29,7 +37,9 @@ export default function GuessInput({ disabled, excludeIds, onSubmit }: GuessInpu
     setLoading(true);
     const handle = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/levels?q=${encodeURIComponent(trimmedQuery)}`);
+        const res = await fetch(
+          `/api/levels?q=${encodeURIComponent(trimmedQuery)}&date=${encodeURIComponent(date)}&difficulty=${difficulty}`
+        );
         if (!res.ok) {
           if (!cancelled) setOptions([]);
           return;
@@ -50,7 +60,7 @@ export default function GuessInput({ disabled, excludeIds, onSubmit }: GuessInpu
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [trimmedQuery, excludeIds]);
+  }, [trimmedQuery, excludeIds, date, difficulty]);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
