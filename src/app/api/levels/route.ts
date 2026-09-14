@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getPoolForDate } from "@/lib/daily";
 import { getDailyPool, resolveDemonById } from "@/lib/pointercrate";
 import { getFrozenTargetId } from "@/lib/targets";
 import type { Difficulty, LevelOption } from "@/types/game";
@@ -19,9 +20,15 @@ export async function GET(request: NextRequest) {
     return NextResponse.json<LevelOption[]>([]);
   }
 
+  // A date-scoped search (always sent by GuessInput, for "today" and archive
+  // alike) reads from that date's frozen pool snapshot once one exists, so
+  // the guessable options match what was actually available the day the
+  // puzzle was first played instead of drifting with the live top-150.
+  const date = request.nextUrl.searchParams.get("date");
+
   let pool;
   try {
-    pool = await getDailyPool();
+    pool = date ? await getPoolForDate(date) : await getDailyPool();
   } catch (err) {
     console.error("GET /api/levels: failed to load pool", err);
     return NextResponse.json({ error: "Failed to load level pool" }, { status: 502 });
@@ -42,11 +49,11 @@ export async function GET(request: NextRequest) {
 
   const results = [...starts, ...contains].slice(0, MAX_RESULTS);
 
-  // If this search is scoped to a specific date+difficulty and that puzzle's
-  // frozen target has since fallen off the live pool, it wouldn't otherwise
-  // ever be searchable/selectable again — merge it in here so it stays
-  // guessable no matter what's happened to the live list since.
-  const date = request.nextUrl.searchParams.get("date");
+  // Safety net for dates whose target was frozen before pool-snapshotting
+  // existed (or where freezing the pool itself failed transiently): the
+  // frozen pool above won't contain that target, so without this it wouldn't
+  // otherwise ever be searchable/selectable again — merge it in here so it
+  // stays guessable regardless.
   const difficultyParam = request.nextUrl.searchParams.get("difficulty");
   if (date && difficultyParam && DIFFICULTIES.includes(difficultyParam as Difficulty)) {
     const difficulty = difficultyParam as Difficulty;

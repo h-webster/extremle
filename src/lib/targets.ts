@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import type { PointercrateDemon } from "@/lib/pointercrate";
 import type { Difficulty } from "@/types/game";
 
 /**
@@ -48,6 +49,42 @@ export async function freezeTargetId(date: string, difficulty: Difficulty, id: n
     await redis.set(targetKey(date, difficulty), id, { nx: true });
   } catch (err) {
     console.error("Failed to freeze target", date, difficulty, err);
+  }
+}
+
+function poolKey(date: string) {
+  return `demonle:pool:${date}`;
+}
+
+/**
+ * Returns the permanently-pinned pool snapshot for this date — the full top-150
+ * roster exactly as it looked the first time this date was ever resolved — or
+ * null if never frozen (or Redis unavailable). Shared across all three
+ * difficulties: the pool doesn't vary by difficulty, only which demon within
+ * it each tier's target is.
+ */
+export async function getFrozenPool(date: string): Promise<PointercrateDemon[] | null> {
+  if (!redis) return null;
+  try {
+    const pool = await redis.get<PointercrateDemon[]>(poolKey(date));
+    return pool ?? null;
+  } catch (err) {
+    console.error("Failed to read frozen pool", date, err);
+    return null;
+  }
+}
+
+/**
+ * Pins a date's full pool snapshot forever, the first time it's resolved.
+ * Same set-if-not-exists race safety as freezeTargetId — whichever concurrent
+ * first-time resolution lands first wins.
+ */
+export async function freezePool(date: string, pool: PointercrateDemon[]): Promise<void> {
+  if (!redis) return;
+  try {
+    await redis.set(poolKey(date), pool, { nx: true });
+  } catch (err) {
+    console.error("Failed to freeze pool", date, err);
   }
 }
 

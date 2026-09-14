@@ -66,5 +66,10 @@ export const SCHEDULE: Record<string, Partial<Record<Difficulty, number>>> = {
   "2026-09-12": { easy: 668, hard: 705, extreme: 520},
   "2026-09-13": { easy: 702, hard: 650, extreme: 588},
   "2026-09-14": { easy: 696, hard: 614, extreme: 653},
+  "2026-09-15": { easy: 639, hard: 521, extreme: 627},
+  "2026-09-16": { easy: 349, hard: 427, extreme: 599},
+  "2026-09-17": { easy: 620, hard: 704, extreme: 654},
+  "2026-09-18": { easy: 658, hard: 528, extreme: 501},
+  "2026-09-19": { easy: 475, hard: 636, extreme: 497}
 
 };

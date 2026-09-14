@@ -1,6 +1,6 @@
 import { getDailyPool, resolveDemonById, type PointercrateDemon } from "@/lib/pointercrate";
 import { SCHEDULE } from "@/lib/schedule";
-import { freezeTargetId, getFrozenTargetId } from "@/lib/targets";
+import { freezePool, freezeTargetId, getFrozenPool, getFrozenTargetId } from "@/lib/targets";
 import type { Difficulty } from "@/types/game";
 
 const DIFFICULTIES: Difficulty[] = ["easy", "hard", "extreme"];
@@ -50,6 +50,26 @@ function seedFromDate(dateStr: string, difficulty: Difficulty): number {
 }
 
 /**
+ * Returns the pool to use for a date: the frozen historical snapshot if one
+ * exists, otherwise the live pool — which this then freezes for next time.
+ * Without this, only the *target* was pinned per date; the surrounding pool
+ * (everyone else's names/positions/etc., which drives autocomplete search and
+ * the guess-position comparisons) still silently drifted to whatever the live
+ * top-150 looks like today, which makes replaying an old puzzle feel wrong
+ * even though the answer itself was correct. Freezing the whole pool the
+ * first time a date is ever touched fixes that going forward. Shared by all
+ * three difficulties (see freezePool in targets.ts), so this only actually
+ * hits the network once per date, not once per date+difficulty.
+ */
+export async function getPoolForDate(dateStr: string): Promise<PointercrateDemon[]> {
+  const frozen = await getFrozenPool(dateStr);
+  if (frozen) return frozen;
+  const pool = await getDailyPool();
+  await freezePool(dateStr, pool);
+  return pool;
+}
+
+/**
  * Resolves all three difficulties' targets for a date together, since each
  * day's three levels must be distinct from one another. Resolution order is
  * easy -> hard -> extreme (easy is the backward-compatible anchor); a salted
@@ -66,7 +86,7 @@ function seedFromDate(dateStr: string, difficulty: Difficulty): number {
 export async function getDailyTargets(
   dateStr: string = todayUTC()
 ): Promise<Record<Difficulty, PointercrateDemon>> {
-  const pool = await getDailyPool();
+  const pool = await getPoolForDate(dateStr);
   const usedIds = new Set<number>();
   const result = {} as Record<Difficulty, PointercrateDemon>;
   const pending: Difficulty[] = [];
@@ -136,7 +156,7 @@ export async function getDailyTarget(
   dateStr: string = todayUTC(),
   difficulty: Difficulty = "easy"
 ): Promise<{ target: PointercrateDemon; pool: PointercrateDemon[] }> {
-  const [pool, targets] = await Promise.all([getDailyPool(), getDailyTargets(dateStr)]);
+  const [pool, targets] = await Promise.all([getPoolForDate(dateStr), getDailyTargets(dateStr)]);
   return { target: targets[difficulty], pool };
 }
 
