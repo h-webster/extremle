@@ -52,6 +52,25 @@ export async function freezeTargetId(date: string, difficulty: Difficulty, id: n
   }
 }
 
+/**
+ * Every frozen target id from the given dates (all three difficulties), in a
+ * single Redis round trip. Used to stop the seeded pick from repeating a level
+ * that was an answer recently. Dates that were never played simply have no
+ * frozen keys and contribute nothing. Empty if Redis is unavailable.
+ */
+export async function getFrozenTargetIds(dates: string[], difficulties: Difficulty[]): Promise<Set<number>> {
+  const ids = new Set<number>();
+  if (!redis || dates.length === 0) return ids;
+  try {
+    const keys = dates.flatMap((date) => difficulties.map((difficulty) => targetKey(date, difficulty)));
+    const values = await redis.mget<(number | null)[]>(...keys);
+    for (const id of values) if (id != null) ids.add(Number(id));
+  } catch (err) {
+    console.error("Failed to read recent frozen targets", err);
+  }
+  return ids;
+}
+
 function poolKey(date: string) {
   return `demonle:pool:${date}`;
 }

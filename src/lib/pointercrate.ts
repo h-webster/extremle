@@ -20,7 +20,11 @@ export interface PointercratePlayer {
   banned: boolean;
 }
 
-/** One entry from GET /demons/listed/ — the shape used for the autocomplete pool and list-derived hints. */
+/**
+ * One entry from GET /demons/listed/ — the shape used for the autocomplete pool and list-derived hints.
+ * `position` is always the rated Demonlist position (see normalizePosition) — never pointercrate's
+ * raw Rated+ position, which also counts unrated levels.
+ */
 export interface PointercrateDemon {
   id: number;
   position: number;
@@ -47,11 +51,27 @@ export interface PointercrateDemonDetail extends PointercrateDemon {
 }
 
 /**
- * Full position-ordered demonlist, paginated 100 at a time by pointercrate.
- * We only ever need the top EXTENDED_LIST_SIZE, so this stops as soon as
- * it has enough — no need to page through legacy demons past position 150.
+ * Raw shape from pointercrate. Since pointercrate split into the Demonlist
+ * (rated levels only) and the Rated+ List (rated + unrated), `/demons/listed/`
+ * returns the Rated+ ordering: `position` counts unrated levels too, while
+ * `rated_position` is the level's spot on the actual Demonlist (null if unrated).
  */
-async function fetchListedPage(after: number, limit: number): Promise<PointercrateDemon[]> {
+interface RawPointercrateDemon extends PointercrateDemon {
+  rated?: boolean;
+  rated_position?: number | null;
+}
+
+/** Swaps pointercrate's Rated+ `position` for the Demonlist one, when the level has one. */
+function normalizePosition<T extends RawPointercrateDemon>(demon: T): T {
+  return demon.rated_position != null ? { ...demon, position: demon.rated_position } : demon;
+}
+
+/**
+ * Full position-ordered Rated+ list, paginated 100 at a time by pointercrate.
+ * Unrated levels are interleaved, so getting the top EXTENDED_LIST_SIZE rated
+ * levels means paging a bit past Rated+ position 150.
+ */
+async function fetchListedPage(after: number, limit: number): Promise<RawPointercrateDemon[]> {
   const res = await fetch(
     `${POINTERCRATE_BASE}/demons/listed/?after=${after}&limit=${limit}`,
     { next: { revalidate: 21600 }, headers: REQUEST_HEADERS } // 6h — the list barely moves within a day
@@ -63,17 +83,36 @@ async function fetchListedPage(after: number, limit: number): Promise<Pointercra
   return res.json();
 }
 
-/** The pool the daily puzzle is drawn from: the top 150 positions (main + extended list). */
+/**
+ * The pool the daily puzzle is drawn from: the top 150 *rated* levels (main +
+ * extended Demonlist), ranked by Demonlist position. Unrated levels (only on
+ * pointercrate's Rated+ List) are excluded.
+ */
 export async function getDailyPool(): Promise<PointercrateDemon[]> {
-  const demons: PointercrateDemon[] = [];
+  const rated: PointercrateDemon[] = [];
   let after = 0;
-  while (demons.length < EXTENDED_LIST_SIZE) {
+  while (rated.length < EXTENDED_LIST_SIZE) {
     const page = await fetchListedPage(after, 100);
     if (page.length === 0) break;
-    demons.push(...page);
+    for (const demon of page) {
+      if (demon.rated === false || demon.rated_position == null) continue;
+      const d = normalizePosition(demon);
+      // Copy only the PointercrateDemon fields so frozen pool snapshots keep the same shape as before.
+      rated.push({
+        id: d.id,
+        position: d.position,
+        name: d.name,
+        requirement: d.requirement,
+        video: d.video,
+        thumbnail: d.thumbnail,
+        publisher: d.publisher,
+        verifier: d.verifier,
+        level_id: d.level_id,
+      });
+    }
     after += page.length;
   }
-  return demons
+  return rated
     .filter((d) => d.position <= EXTENDED_LIST_SIZE)
     .sort((a, b) => a.position - b.position);
 }
@@ -87,8 +126,8 @@ export async function getDemonDetail(id: number): Promise<PointercrateDemonDetai
     const text = await res.text().catch(() => "");
     throw new Error(`Pointercrate demon detail fetch failed: ${res.status} ${text.slice(0, 300)}`);
   }
-  const body: { data: PointercrateDemonDetail } = await res.json();
-  return body.data;
+  const body: { data: PointercrateDemonDetail & RawPointercrateDemon } = await res.json();
+  return normalizePosition(body.data);
 }
 
 /**

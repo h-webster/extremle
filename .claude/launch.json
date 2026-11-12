@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
+    },
+    {
+      "name": "extremle-dev-no-redis",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["UPSTASH_REDIS_REST_URL=", "UPSTASH_REDIS_REST_TOKEN=", "npx", "next", "dev", "-p", "3001"],
+      "port": 3001
     }
   ]
 }

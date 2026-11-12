@@ -1,9 +1,16 @@
 import { getDailyPool, resolveDemonById, type PointercrateDemon } from "@/lib/pointercrate";
 import { SCHEDULE } from "@/lib/schedule";
-import { freezePool, freezeTargetId, getFrozenPool, getFrozenTargetId } from "@/lib/targets";
+import { freezePool, freezeTargetId, getFrozenPool, getFrozenTargetId, getFrozenTargetIds } from "@/lib/targets";
 import type { Difficulty } from "@/types/game";
 
 const DIFFICULTIES: Difficulty[] = ["easy", "hard", "extreme"];
+
+/**
+ * A seeded pick never lands on a level that was any tier's answer in this many
+ * preceding days (3 tiers x 30 days = at most 90 of the 150 excluded, so there
+ * are always plenty left). SCHEDULE overrides ignore this — those are deliberate.
+ */
+const NO_REPEAT_DAYS = 30;
 
 /** First day the daily puzzle ran — used only to number puzzles for display ("Puzzle #12"). */
 const LAUNCH_DATE = "2026-08-04";
@@ -35,18 +42,38 @@ export function puzzleNumber(dateStr: string = todayUTC()): number {
 }
 
 /**
- * Deterministic 32-bit hash (djb2) so every player gets the same daily target.
- * Easy stays unsalted (hashes the date alone) for backward compatibility with
- * puzzles already played before difficulty tiers existed — Hard/Extreme salt
- * the input with the difficulty name so they diverge from Easy's pick.
+ * Deterministic 32-bit hash so every player gets the same daily target: FNV-1a
+ * followed by murmur3's fmix32 finalizer. The finalizer matters — the old
+ * plain djb2 hash barely changed between consecutive dates (only the last
+ * character differs), so Easy walked down the list one spot per day and
+ * Hard/Extreme kept landing on the same handful of spots. fmix32 makes every
+ * input bit affect every output bit, so consecutive dates pick unrelated levels.
+ *
+ * Changing this only affects dates that were never frozen — every date that
+ * was ever played keeps its frozen target (see targets.ts).
  */
 function seedFromDate(dateStr: string, difficulty: Difficulty): number {
-  const input = difficulty === "easy" ? dateStr : `${dateStr}:${difficulty}`;
-  let hash = 5381;
+  const input = `${dateStr}:${difficulty}`;
+  let hash = 0x811c9dc5;
   for (let i = 0; i < input.length; i++) {
-    hash = (hash * 33) ^ input.charCodeAt(i);
+    hash ^= input.charCodeAt(i);
+    hash = Math.imul(hash, 0x01000193);
   }
+  hash ^= hash >>> 16;
+  hash = Math.imul(hash, 0x85ebca6b);
+  hash ^= hash >>> 13;
+  hash = Math.imul(hash, 0xc2b2ae35);
+  hash ^= hash >>> 16;
   return hash >>> 0;
+}
+
+/** The `count` calendar dates immediately before dateStr, as YYYY-MM-DD. */
+function previousDates(dateStr: string, count: number): string[] {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const base = Date.UTC(y, m - 1, d);
+  return Array.from({ length: count }, (_, i) =>
+    new Date(base - (i + 1) * 86_400_000).toISOString().slice(0, 10)
+  );
 }
 
 /**
@@ -72,9 +99,9 @@ export async function getPoolForDate(dateStr: string): Promise<PointercrateDemon
 /**
  * Resolves all three difficulties' targets for a date together, since each
  * day's three levels must be distinct from one another. Resolution order is
- * easy -> hard -> extreme (easy is the backward-compatible anchor); a salted
- * pick that collides with an already-resolved tier's demon is deterministically
- * walked forward (linear probing) until it lands on a free slot.
+ * easy -> hard -> extreme. A seeded pick chooses among the pool minus the
+ * levels already used today and minus anything that was an answer in the
+ * last NO_REPEAT_DAYS days.
  *
  * Every date+difficulty is permanently pinned (see targets.ts) the first time
  * it's ever resolved, so replaying an old date always shows the same puzzle
@@ -112,8 +139,13 @@ export async function getDailyTargets(
     result[difficulty] = demon;
   }
 
-  // Pass 2: compute (SCHEDULE override, else seeded pick with linear-probe
-  // collision avoidance against usedIds) and freeze whatever wasn't already frozen.
+  // Pass 2: compute (SCHEDULE override, else seeded pick avoiding today's other
+  // targets and recent answers) and freeze whatever wasn't already frozen.
+  const recentIds =
+    pending.length > 0
+      ? await getFrozenTargetIds(previousDates(dateStr, NO_REPEAT_DAYS), DIFFICULTIES)
+      : new Set<number>();
+
   for (const difficulty of pending) {
     const scheduledId = SCHEDULE[dateStr]?.[difficulty];
     let demon: PointercrateDemon | undefined;
@@ -135,13 +167,10 @@ export async function getDailyTargets(
     }
 
     if (!demon) {
-      let index = seedFromDate(dateStr, difficulty) % pool.length;
-      let attempt = 1;
-      while (usedIds.has(pool[index].id)) {
-        index = (index + attempt) % pool.length;
-        attempt += 1;
-      }
-      demon = pool[index];
+      let candidates = pool.filter((d) => !usedIds.has(d.id) && !recentIds.has(d.id));
+      // Only reachable with a tiny pool; fall back to just avoiding today's other tiers.
+      if (candidates.length === 0) candidates = pool.filter((d) => !usedIds.has(d.id));
+      demon = candidates[seedFromDate(dateStr, difficulty) % candidates.length];
     }
 
     usedIds.add(demon.id);

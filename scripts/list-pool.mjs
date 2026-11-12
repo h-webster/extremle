@@ -14,13 +14,18 @@ async function fetchListedPage(after, limit) {
   return res.json();
 }
 
+// Mirrors getDailyPool() in src/lib/pointercrate.ts: rated levels only, ranked
+// by Demonlist position (`rated_position`), not pointercrate's Rated+ position.
 async function getPool() {
   const demons = [];
   let after = 0;
   while (demons.length < EXTENDED_LIST_SIZE) {
     const page = await fetchListedPage(after, 100);
     if (page.length === 0) break;
-    demons.push(...page);
+    for (const d of page) {
+      if (d.rated === false || d.rated_position == null) continue;
+      demons.push({ ...d, position: d.rated_position });
+    }
     after += page.length;
   }
   return demons
