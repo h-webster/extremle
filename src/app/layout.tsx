@@ -59,9 +59,17 @@ const JSON_LD = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
 };
 
+// Runs before first paint so a saved dark-mode choice doesn't flash white.
+// Mirrors THEME_KEY in ThemeToggle.tsx.
+const THEME_SCRIPT = `try{if(localStorage.getItem("demonle:theme")==="dark")document.documentElement.dataset.theme="dark"}catch(e){}`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className={`${poppins.variable} h-full antialiased`}>
+    // suppressHydrationWarning: THEME_SCRIPT may set data-theme before React hydrates.
+    <html lang="en" className={`${poppins.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
+      </head>
       <body className="min-h-full flex flex-col bg-bg text-text-primary">
         <script
           type="application/ld+json"

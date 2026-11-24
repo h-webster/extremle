@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Tailwind's dark: variant follows the navbar toggle (<html data-theme="dark">), not the OS setting. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
 :root {
   --color-bg: #ffffff;
   --color-bg-card: #f1f5f9;
@@ -22,6 +25,36 @@
   --font-display: var(--font-poppins);
   --font-body: var(--font-poppins);
   --font-mono: var(--font-poppins);
+
+  /* Seasonal wordmark (see ChristmasWordmark in Navbar.tsx) */
+  --color-xmas-red: #c62828;
+  --color-xmas-green: #15803d;
+}
+
+/* Dark mode — opt-in via the navbar toggle, which sets <html data-theme="dark">
+   (saved in localStorage as demonle:theme, applied before paint by the inline
+   script in layout.tsx). Same flat palette rules, just inverted. */
+:root[data-theme="dark"] {
+  --color-bg: #0d1117;
+  --color-bg-card: #161b22;
+  --color-bg-card-hover: #1f2630;
+  --color-border: #2a323c;
+
+  --color-text-primary: #e6edf3;
+  --color-text-secondary: #c9d1d9;
+  --color-text-muted: #6fbf8f;
+
+  --color-accent: #10b981;
+  --color-accent-hover: #059669;
+  --color-accent-ink: #ffffff;
+
+  --color-correct: #22c55e;
+  --color-correct-soft: rgba(34, 197, 94, 0.15);
+  --color-danger: #ef4444;
+  --color-danger-soft: rgba(239, 68, 68, 0.15);
+
+  --color-xmas-red: #ef4444;
+  --color-xmas-green: #22c55e;
 }
 
 @theme inline {
@@ -50,6 +83,13 @@
 
 html {
   color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html {
   overscroll-behavior-y: none;
 }
 

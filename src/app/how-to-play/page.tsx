@@ -19,7 +19,7 @@ export default function HowToPlayPage() {
     <div className="mx-auto w-full max-w-xl flex-1 px-4 py-10">
       <h1 className="text-xl font-bold text-text-primary">How to play</h1>
       <p className="mt-3 text-[14px] leading-relaxed text-text-secondary">
-        Every day, Extremle picks one level from the top 150 of the
+        Every day, Extremle picks one rated level from the top 150 of the
         Pointercrate demonlist. You have six guesses to name it. Guesses are
         picked from the pointercrate demon list.
       </p>

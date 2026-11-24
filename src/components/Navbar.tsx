@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import ThemeToggle from "@/components/ThemeToggle";
 
 function CalendarIcon() {
   return (
@@ -33,6 +34,46 @@ function HelpIcon() {
   );
 }
 
+/** Flat Santa hat, drawn to sit tilted on the wordmark's first letter. */
+function SantaHat() {
+  return (
+    <svg
+      width="18"
+      height="15"
+      viewBox="0 0 24 20"
+      aria-hidden="true"
+      className="pointer-events-none absolute -left-[5px] -top-[7px] -rotate-[18deg]"
+    >
+      <path d="M3 15 C5 7 10 2 16 3 C19 3.5 21 6 21 9 L18 8 C17 12 16 14 15.5 15 Z" fill="#c62828" />
+      <rect x="1.5" y="14" width="16" height="4.5" rx="2.2" fill="#ffffff" stroke="#e2e8f0" strokeWidth="0.6" />
+      <circle cx="20.5" cy="10" r="2.6" fill="#ffffff" stroke="#e2e8f0" strokeWidth="0.6" />
+    </svg>
+  );
+}
+
+const WORDMARK = "Extremle";
+// Christmas red / green, alternating per letter (CSS vars so dark mode gets brighter shades)
+const WORDMARK_COLORS = ["var(--color-xmas-red)", "var(--color-xmas-green)"];
+
+/**
+ * Seasonal (Christmas) version of the "Extremle" wordmark: letters alternate
+ * red and green, with a Santa hat on the "E". To go back to the plain
+ * wordmark after the holidays, swap <ChristmasWordmark /> in the navbar for
+ * the plain text span.
+ */
+function ChristmasWordmark() {
+  return (
+    <span className="relative font-bold text-[15px] tracking-tight" aria-label={WORDMARK}>
+      <SantaHat />
+      {WORDMARK.split("").map((letter, i) => (
+        <span key={i} aria-hidden="true" style={{ color: WORDMARK_COLORS[i % 2] }}>
+          {letter}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 const ICON_LINKS = [
   { href: "/archive", label: "Archive", icon: CalendarIcon },
   { href: "/stats", label: "Stats", icon: BarChartIcon },
@@ -52,9 +93,7 @@ export default function Navbar() {
             className="shrink-0"
             priority
           />
-          <span className="font-bold text-[15px] tracking-tight text-text-primary">
-            Extremle
-          </span>
+          <ChristmasWordmark />
           <span className="hidden text-[12px] text-text-muted sm:inline">
             Extreme Demon List Wordle
           </span>
@@ -72,6 +111,7 @@ export default function Navbar() {
               <link.icon />
             </Link>
           ))}
+          <ThemeToggle />
         </nav>
       </div>
     </header>

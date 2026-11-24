@@ -9,6 +9,7 @@ interface ResultPanelProps {
   guesses: GuessResponse[];
   status: "won" | "lost";
   puzzleNumber: number;
+  difficulty: Difficulty;
   unlockedTier?: "hard" | "extreme" | null;
   onSwitchTier?: (tier: Difficulty) => void;
 }
@@ -26,12 +27,19 @@ function nextResetLabel(): string {
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-function buildShareText(guesses: GuessResponse[], status: "won" | "lost", puzzle: number) {
+const DIFFICULTY_LABELS: Record<Difficulty, string> = { easy: "Easy", hard: "Hard", extreme: "Extreme" };
+
+function buildShareText(
+  guesses: GuessResponse[],
+  status: "won" | "lost",
+  puzzle: number,
+  difficulty: Difficulty
+) {
   const grid = guesses
     .map((g) => (g.correct ? "🟩" : g.positionDirection === "harder" ? "📈" : "📉"))
     .join("");
   const score = status === "won" ? `${guesses.length}/6` : "X/6";
-  return `Extremle #${puzzle} ${score}\n${grid}`;
+  return `Extremle #${puzzle} (${DIFFICULTY_LABELS[difficulty]}) ${score}\n${grid}`;
 }
 
 function ShareGlyphRow({ guesses }: { guesses: GuessResponse[] }) {
@@ -73,6 +81,7 @@ export default function ResultPanel({
   guesses,
   status,
   puzzleNumber,
+  difficulty,
   unlockedTier,
   onSwitchTier,
 }: ResultPanelProps) {
@@ -126,7 +135,7 @@ export default function ResultPanel({
   if (!reveal) return null;
 
   async function handleShare() {
-    const text = buildShareText(guesses, status, puzzleNumber);
+    const text = buildShareText(guesses, status, puzzleNumber, difficulty);
     try {
       await navigator.clipboard.writeText(text);
       setCopied(true);

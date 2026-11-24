@@ -164,6 +164,7 @@ export default function PlayGame({
             guesses={guesses}
             status={status}
             puzzleNumber={puzzleNum}
+            difficulty={difficulty}
             unlockedTier={justUnlocked}
             onSwitchTier={onSwitchTier}
           />

@@ -54,3 +54,28 @@ export async function recordCompletion(
     return null;
   }
 }
+
+/**
+ * Total finished games (all three difficulties combined) for each of the given
+ * dates, in a single MGET. Dates nobody finished come back as 0. Returns null
+ * if Redis is unavailable, so callers can just hide the numbers.
+ */
+export async function getPlayedTotals(dates: string[]): Promise<Record<string, number> | null> {
+  if (!redis) return null;
+  if (dates.length === 0) return {};
+  const difficulties: Difficulty[] = ["easy", "hard", "extreme"];
+  try {
+    const keys = dates.flatMap((date) => difficulties.map((d) => playedKey(date, d)));
+    const values = await redis.mget<(number | null)[]>(...keys);
+    const totals: Record<string, number> = {};
+    dates.forEach((date, i) => {
+      let sum = 0;
+      for (let j = 0; j < difficulties.length; j++) sum += Number(values[i * difficulties.length + j] ?? 0);
+      totals[date] = sum;
+    });
+    return totals;
+  } catch (err) {
+    console.error("Failed to read completion totals", err);
+    return null;
+  }
+}

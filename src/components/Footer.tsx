@@ -24,7 +24,14 @@ export default function Footer() {
             aria-label="View source on GitHub"
             className="flex h-8 w-8 items-center justify-center opacity-80 transition-[opacity,transform] duration-100 hover:opacity-100 active:scale-90"
           >
-            <Image src="/github.svg" alt="" width={18} height={18} />
+            <Image src="/github.svg" alt="" width={18} height={18} className="dark:hidden" />
+            <Image
+              src="/github-white.svg"
+              alt=""
+              width={18}
+              height={18}
+              className="hidden dark:block"
+            />
           </a>
           <a
             href="https://discord.gg/3GncsZhZ5u"

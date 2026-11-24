@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { puzzleNumber, todayLocal } from "@/lib/daily";
+import type { CompletionTotalsResponse } from "@/app/api/completions/route";
 
 const LAUNCH_DATE = "2026-08-04";
 
@@ -28,41 +29,80 @@ function pastDates(today: string): string[] {
   return dates;
 }
 
-export default function ArchiveList() {
+function plays(count: number) {
+  return `${count.toLocaleString("en-US")} ${count === 1 ? "play" : "plays"}`;
+}
+
+/**
+ * `header` (the page title/subtitle) is rendered below the all-time play
+ * total, so the total can sit above the title while the fetch stays here.
+ */
+export default function ArchiveList({ header }: { header: ReactNode }) {
   const [dates, setDates] = useState<string[] | null>(null);
+  // Cross-player counts are a nice-to-have: if the request fails (or Redis
+  // isn't configured), the archive just renders without them.
+  const [totals, setTotals] = useState<CompletionTotalsResponse | null>(null);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time client read of the local calendar date
     setDates(pastDates(todayLocal()));
+    fetch("/api/completions")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data: CompletionTotalsResponse | null) => setTotals(data))
+      .catch(() => {});
   }, []);
 
+  const total = totals && (
+    <p className="mb-8 text-center text-[18px] text-text-secondary">
+      <span className="block text-[44px] font-bold leading-tight text-accent">
+        {totals.total.toLocaleString("en-US")}
+      </span>
+      games completed by everyone so far
+    </p>
+  );
+
   if (dates === null) {
-    return null;
+    return header;
   }
 
   if (dates.length === 0) {
     return (
-      <p className="mt-8 text-[14px] text-text-muted">
-        Puzzle #1 just dropped. The archive fills in from tomorrow.
-      </p>
+      <>
+        {total}
+        {header}
+        <p className="mt-8 text-[14px] text-text-muted">
+          Puzzle #1 just dropped. The archive fills in from tomorrow.
+        </p>
+      </>
     );
   }
 
   return (
-    <ol className="mt-6 border-t border-border">
-      {dates.map((date) => (
-        <li key={date} className="border-b border-border">
-          <Link
-            href={`/archive/${date}`}
-            className="flex items-center justify-between py-2.5 text-[14px] hover:bg-bg-card-hover"
-          >
-            <span className="font-medium text-text-primary">
-              Puzzle #{puzzleNumber(date)}
-            </span>
-            <span className="text-text-secondary">{formatLabel(date)}</span>
-          </Link>
-        </li>
-      ))}
-    </ol>
+    <>
+      {total}
+      {header}
+      <ol className="mt-6 border-t border-border">
+        {dates.map((date) => (
+          <li key={date} className="border-b border-border">
+            <Link
+              href={`/archive/${date}`}
+              className="flex items-center justify-between py-2.5 text-[14px] hover:bg-bg-card-hover"
+            >
+              <span className="font-medium text-text-primary">
+                Puzzle #{puzzleNumber(date)}
+              </span>
+              <span className="flex items-baseline gap-3">
+                {totals && (
+                  <span className="text-[12px] text-text-muted">
+                    {plays(totals.byDate[date] ?? 0)}
+                  </span>
+                )}
+                <span className="text-text-secondary">{formatLabel(date)}</span>
+              </span>
+            </Link>
+          </li>
+        ))}
+      </ol>
+    </>
   );
 }
