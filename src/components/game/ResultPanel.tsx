@@ -39,7 +39,7 @@ function buildShareText(
     .map((g) => (g.correct ? "🟩" : g.positionDirection === "harder" ? "📈" : "📉"))
     .join("");
   const score = status === "won" ? `${guesses.length}/6` : "X/6";
-  return `Extremle #${puzzle} (${DIFFICULTY_LABELS[difficulty]}) ${score}\n${grid}`;
+  return `extremle.io #${puzzle} (${DIFFICULTY_LABELS[difficulty]}) ${score}\n${grid}`;
 }
 
 function ShareGlyphRow({ guesses }: { guesses: GuessResponse[] }) {
